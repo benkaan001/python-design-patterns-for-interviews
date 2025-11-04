@@ -10,13 +10,8 @@ Imagine you have an object (let's call it the "Subject") whose state changes fre
 
 * **News Feed:** A news agency (Subject) publishes new articles, and many subscribers (Observers) need to be notified instantly.
 * **Stock Market:** A stock price (Subject) changes, and various trading algorithms or UI widgets (Observers) need to react to the new price.
-* **UI Elements:** A button (Subject) is clicked, and multiple listeners (Observers) need to perform actions (e.g., update text, play sound, open a new window).
 
-The naive approach would be for the Subject to know about and directly call methods on all its interested Observers. This leads to:
-
-* **Tight Coupling:** The Subject becomes tightly coupled to concrete Observer classes. Adding, removing, or changing an Observer requires modifying the Subject.
-* **Lack of Flexibility:** It's hard to dynamically add or remove Observers at runtime.
-* **Scalability Issues:** As the number of Observers grows, managing direct dependencies becomes unwieldy.
+The naive approach would be for the Subject to know about and directly call methods on all its interested Observers. This leads to  **tight coupling** ,  **lack of flexibility** , and  **scalability issues** .
 
 The Observer pattern solves this by defining a **one-to-many dependency** between objects. When the Subject's state changes, all its dependents are notified and updated automatically, without the Subject needing to know their concrete classes.
 
@@ -31,49 +26,40 @@ The Observer pattern defines a subscription mechanism to notify multiple objects
    * Provides methods for attaching (`attach()`) and detaching (`detach()`) Observer objects.
    * Notifies its observers of state changes by calling their `update()` method.
 2. **Observer (Subscriber):**
-   * Defines an updating interface for objects that should be notified of changes in a Subject.
+   * Defines an updating interface (`update()`) for objects that should be notified of changes in a Subject.
    * Concrete Observers implement this interface to perform specific actions when notified.
 3. **Concrete Subject:**
    * Stores the state of interest to Concrete Observers.
    * Sends a notification to its observers when its state changes.
 4. **Concrete Observer:**
-   * Stores a reference to the Concrete Subject.
-   * Implements the Observer updating interface.
-   * Reacts to notifications from the Subject.
+   * Implements the Observer updating interface and reacts to notifications.
 
 ### Benefits:
 
-* **Loose Coupling:** Subject and Observer are loosely coupled. They only need to know about each other's abstract interfaces, not concrete implementations.
+* **Loose Coupling:** Subject and Observer only need to know about each other's abstract interfaces.
 * **Extensibility:** You can add new Concrete Observers without modifying the Subject.
-* **Reusability:** Observers can be reused with different Subjects.
 * **Runtime Flexibility:** Observers can be attached and detached dynamically at runtime.
 
 ### When to Use / Avoid:
 
-* **Use when:**
-  * A change to one object requires changing others, and you don't know how many objects need to be changed.
-  * An object should be able to notify other objects without making assumptions about who these objects are.
-  * You want to avoid tight coupling between the sender and receiver of notifications.
-* **Avoid when:**
-  * The update logic is very simple and direct coupling is acceptable.
-  * The overhead of managing subscriptions is too high for the benefit.
-  * You need strict control over the order of notifications (Observer pattern doesn't guarantee order).
+* **Use when:** A change to one object requires changing others, and you want to avoid tight coupling between the sender and receiver of notifications.
+* **Avoid when:** The update logic is very simple and direct coupling is acceptable, or you need strict control over the order of notifications.
 
-## 🐍 Initial Example (Python): Simple Stock Price Monitor
+## 🐍 Initial Example (Python): Simple Stock Price Monitor (Push Model)
 
 ```py
 from abc import ABC, abstractmethod
 from typing import List
 
-# 1. Observer (Subscriber) Interface
+# 1. Observer (Subscriber) Interface (PUSH MODEL)
 class Observer(ABC):
     """
-    The Observer interface declares the update method, used by subjects.
+    The Observer interface declares the update method, receiving data directly.
     """
     @abstractmethod
-    def update(self, subject: 'Subject') -> None:
+    def update(self, symbol: str, price: float, volume: int) -> None:
         """
-        Receive update from subject.
+        Receives updated stock data from the subject (Push Model).
         """
         pass
 
@@ -84,33 +70,28 @@ class Subject(ABC):
     """
     @abstractmethod
     def attach(self, observer: Observer) -> None:
-        """
-        Attach an observer to the subject.
-        """
+        """Attach an observer to the subject."""
         pass
 
     @abstractmethod
     def detach(self, observer: Observer) -> None:
-        """
-        Detach an observer from the subject.
-        """
+        """Detach an observer from the subject."""
         pass
 
     @abstractmethod
     def notify(self) -> None:
-        """
-        Notify all observers about an event.
-        """
+        """Notify all observers about an event."""
         pass
 
 # 3. Concrete Subject
 class StockMarket(Subject):
     """
-    The Concrete Subject owns some state and notifies its observers when its
-    state changes.
+    The Concrete Subject owns some state (stock price) and notifies its observers.
     """
     _observers: List[Observer] = []
+    _symbol: str = "XYZ"
     _price: float = 0.0
+    _volume: int = 0
 
     def attach(self, observer: Observer) -> None:
         print(f"Subject: Attached an observer: {observer.__class__.__name__}")
@@ -122,26 +103,20 @@ class StockMarket(Subject):
 
     def notify(self) -> None:
         """
-        Trigger an update on each subscribed observer.
+        Trigger an update on each subscribed observer by PUSHING the data.
         """
         print("Subject: Notifying observers...")
         for observer in self._observers:
-            observer.update(self)
+            # PUSHING all necessary data to the observer
+            observer.update(self._symbol, self._price, self._volume)
 
-    @property
-    def price(self) -> float:
+    def set_price_update(self, new_price: float, new_volume: int) -> None:
         """
-        For observers to pull the state from the subject.
+        When the price changes, update state and notify observers.
         """
-        return self._price
-
-    @price.setter
-    def price(self, new_price: float) -> None:
-        """
-        When the price changes, notify observers.
-        """
-        print(f"\nSubject: Price changed from {self._price} to {new_price}")
+        print(f"\nSubject: Price update received for {self._symbol}: ${new_price:.2f} (Volume: {new_volume})")
         self._price = new_price
+        self._volume = new_volume
         self.notify()
 
 # 4. Concrete Observers
@@ -149,22 +124,20 @@ class TradingAlgorithm(Observer):
     """
     Reacts to price changes to make trading decisions.
     """
-    def update(self, subject: Subject) -> None:
-        if isinstance(subject, StockMarket):
-            if subject.price > 105.0:
-                print(f"TradingAlgorithm: Price is high ({subject.price}), considering selling.")
-            elif subject.price < 95.0:
-                print(f"TradingAlgorithm: Price is low ({subject.price}), considering buying.")
-            else:
-                print(f"TradingAlgorithm: Price is stable ({subject.price}), holding.")
+    def update(self, symbol: str, price: float, volume: int) -> None:
+        if price > 105.0 and volume > 1000:
+            print(f"TradingAlgorithm: SELL Alert for {symbol} (High Price/Volume).")
+        elif price < 95.0:
+            print(f"TradingAlgorithm: BUY Alert for {symbol} (Low Price).")
+        else:
+            print(f"TradingAlgorithm: Holding {symbol} ({price}).")
 
 class UIWidget(Observer):
     """
     Updates a UI display with the new price.
     """
-    def update(self, subject: Subject) -> None:
-        if isinstance(subject, StockMarket):
-            print(f"UIWidget: Displaying new price: ${subject.price:.2f}")
+    def update(self, symbol: str, price: float, volume: int) -> None:
+        print(f"UIWidget: Displaying new price for {symbol}: ${price:.2f} (Volume: {volume})")
 
 # --- Usage ---
 if __name__ == "__main__":
@@ -176,20 +149,20 @@ if __name__ == "__main__":
     stock_market.attach(trading_algo)
     stock_market.attach(ui_widget)
 
-    stock_market.price = 100.0
-    stock_market.price = 90.0
+    stock_market.set_price_update(100.0, 500)
+    stock_market.set_price_update(90.0, 1500)
 
     stock_market.detach(ui_widget) # UI widget no longer receives updates
-    stock_market.price = 110.0
+    stock_market.set_price_update(110.0, 1200)
 
     # Add another observer dynamically
-    class AlertSystem(Observer):
-        def update(self, subject: Subject) -> None:
-            if isinstance(subject, StockMarket) and subject.price > 108.0:
-                print(f"AlertSystem: HIGH PRICE ALERT! Current price: {subject.price}")
+    class VolumeAlert(Observer):
+        def update(self, symbol: str, price: float, volume: int) -> None:
+            if volume > 1150:
+                print(f"VolumeAlert: High trading volume ({volume}) detected for {symbol}.")
 
-    alert_system = AlertSystem()
+    alert_system = VolumeAlert()
     stock_market.attach(alert_system)
-    stock_market.price = 109.5
+    stock_market.set_price_update(109.5, 1300)
 
 ```
